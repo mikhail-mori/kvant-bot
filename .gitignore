@@ -136,6 +136,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# xTunnel
+.xtunnel
+xtunnel/
+
 # Spyder project settings
 .spyderproject
 .spyproject
