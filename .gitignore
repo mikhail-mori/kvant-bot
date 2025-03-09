@@ -139,6 +139,7 @@ venv.bak/
 # xTunnel
 .xtunnel
 xtunnel/
+xtunnel.zip
 
 # Spyder project settings
 .spyderproject
@@ -173,3 +174,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Test pictures
+*.png 
+*.jpg
+*.webm
+
+# Databases
+*.db
+
+# Logs
+logs
+*.log

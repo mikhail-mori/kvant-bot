@@ -9,14 +9,16 @@ set "REQUIREMENTS=%PROJECT_ROOT%requirements.txt"
 set "DOT_ENV=%PROJECT_ROOT%.env"
 set "PYTHON_URL=https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe"
 set "PYTHON_INSTALLER=%TEMP%\python-installer.exe"
-set "LOG_FILE=%PROJECT_ROOT%app.log"
+set "LOG_DIR=%PROJECT_ROOT%logs"
+set "LOG_FILE=%LOG_DIR%\app.log"
 set "FLASK_PORT=5000"
+set "admin_url="
 
 :: Настройки xTunnel
 set "XTUNNEL_DIR=%PROJECT_ROOT%xTunnel"
 set "XTUNNEL_EXE=%XTUNNEL_DIR%\xTunnel.exe"
 set "XTUNNEL_URL=https://files.xtunnel.ru/xtunnel/1.0.14/xTunnel.win-x64.1.0.14.zip"
-set "XTUNNEL_PORT=5000"
+set "XTUNNEL_LOG=%TEMP%\xtunnel_%RANDOM%.log"
 
 :: Главное меню
 :main
@@ -27,12 +29,12 @@ echo ╔════════════════════════
 echo ║  🚀 Кванториум Бот - Система управления   ║
 echo ╚═══════════════════════════════════════════╝
 echo.
-echo Текущий статус: !project_status!
+echo Текущий статус: !project_status! !admin_url!
 echo.
-echo 1. 🛠️  Установить зависимости и запустить
+echo 1. 🛠️  Установить зависимости и запустить (Первый запуск)
 echo 2. ⚡ Только запустить
-echo 3. 🔄 Перезапустить всё
-echo 4. 🔍 Просмотреть последние ошибки логов
+echo 3. 🔄 Перезапустить
+echo 4. 🔍 Просмотреть последние ошибки
 echo 5. 🚪 Выход
 echo.
 set /p choice="👉 Выберите действие: "
@@ -42,6 +44,15 @@ if "%choice%"=="3" goto restart_all
 if "%choice%"=="4" goto view_errors
 if "%choice%"=="5" exit /b
 goto main
+
+:: Функция просмотра последних строк файла
+:tail
+setlocal
+set "file=%~1"
+set "lines=%~2"
+if "%lines%"=="" set lines=5
+powershell -nologo -noprofile -command "Get-Content '%file%' | Select-Object -Last %lines%"
+exit /b
 
 :: Проверка статуса по порту
 :check_status
@@ -105,16 +116,28 @@ exit /b
 :: Создание .env файла
 :create_dotenv
 echo.
-echo 🔧 Создание .env файла...
-if not exist "%DOT_ENV%" (
-    echo DEBUG=True> "%DOT_ENV%"
-    echo TELEGRAM_TOKEN=>> "%DOT_ENV%"
-    echo VK_TOKEN=>> "%DOT_ENV%"
-    echo PASSWORD=>> "%DOT_ENV%"
-    echo INFO_URL=sqlite:///databases/info.db>> "%DOT_ENV%"
-    echo USERS_URL=sqlite:///databases/users.db>> "%DOT_ENV%"
+echo 🔧 [2/5] Настройка окружения...
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+if not exist "%LOG_FILE%" (
+    echo Logs have been created > "%LOG_FILE%"
+    echo 📝 Создан новый файл логов
 )
-echo ✅ Файл .env готов
+if exist "%DOT_ENV%" (
+    echo 📄 Файл .env уже существует
+) else (
+    echo.
+    echo 🔧 [2/5] Ввод параметров окружения...
+    set /p flask_secret_key="Введите пароль: "
+    set /p telegram_bot_token="Введите токен телеграм бота: "
+    set /p vk_bot_token="Введите токен вк бота: "
+    echo DEBUG=False              > "%DOT_ENV%"
+    echo PASSWORD="!flask_secret_key!" >> "%DOT_ENV%"
+    echo TELEGRAM_TOKEN="!telegram_bot_token!" >> "%DOT_ENV%"
+    echo VK_TOKEN="!vk_bot_token!" >> "%DOT_ENV%"
+    echo INFO_URL="sqlite:///databases/info.db" >> "%DOT_ENV%"
+    echo USERS_URL="sqlite:///databases/users.db" >> "%DOT_ENV%"
+    echo ✅ Успешно: Параметры окружения настроены
+)
 exit /b
 
 :: Создание виртуального окружения
@@ -139,25 +162,9 @@ echo 🔌 Активация окружения...
 call "%VENV_DIR%\Scripts\activate.bat"
 exit /b
 
-:: Запуск компонентов
-:run_components
-call :check_status
-if "!project_status!"=="Запущен" (
-    echo ❗ Проект уже запущен
-    timeout /T 2 /NOBREAK >nul
-    goto main
-)
-
-echo 🌐 Запуск сервера и ботов...
-start "" /B python api\api.py
-start "" /B python clients\telegram.py
-start "" /B python clients\vk.py
-echo ✅ Компоненты запущены в фоне
-timeout /T 2 /NOBREAK >nul
-goto main
-
-:: Настройка xTunnel
+:: Настройка xTunnel (исправленная версия)
 :setup_xtunnel
+echo.
 :: Проверка наличия xTunnel
 if not exist "%XTUNNEL_EXE%" (
     echo 🚀 xTunnel не найден, начинаем установку...
@@ -167,61 +174,78 @@ if not exist "%XTUNNEL_EXE%" (
     )
 )
 
-:: Попытка запуска
-echo ▶ Запуск xTunnel на порту %XTUNNEL_PORT%...
-start "" /B "%XTUNNEL_EXE%" -p %XTUNNEL_PORT%
-
-:: Проверка запуска
-set "max_attempts=5"
-for /L %%i in (1,1,%max_attempts%) do (
-    timeout /T 2 /NOBREAK >nul
-    tasklist /FI "IMAGENAME eq xTunnel.exe" 2>nul | find /I "xTunnel.exe" >nul
-    if !errorlevel! equ 0 (
-        echo ✅ xTunnel успешно запущен
-        exit /b 0
+:: Проверка статуса регистрации
+echo ▶ Проверка статуса xTunnel...
+"%XTUNNEL_EXE%" status > "%XTUNNEL_LOG%" 2>&1
+findstr /C:"Status: Registered" "%XTUNNEL_LOG%" >nul
+if %errorlevel% neq 0 (
+    echo ❗ Требуется активация xTunnel!
+    echo 🔑 Перейдите на https://cabinet.xtunnel.ru/ для получения ключа
+    set "activation_key="
+    set /p "activation_key=Введите ключ активации: "
+    
+    :: Проверка ввода ключа
+    if "!activation_key!"=="" (
+        echo ❌ Ключ активации не введен!
+        exit /b 1
     )
+    
+    :: Выполнение активации с кавычками
+    echo ▶ Регистрация xTunnel...
+    "%XTUNNEL_EXE%" register "!activation_key!" > "%XTUNNEL_LOG%" 2>&1
+    
+    :: Проверка результата
+    findstr /C:"Registration completed successfully" "%XTUNNEL_LOG%" >nul
+    if %errorlevel% neq 0 (
+        echo ❌ Ошибка активации. Логи:
+        type "%XTUNNEL_LOG%"
+        del "%XTUNNEL_LOG%"
+        pause
+        exit /b 1
+    )
+    echo ✅ Успешная активация xTunnel
 )
 
-:: Если не запустился - запрос ключа
-echo ❗ xTunnel не активирован!
-echo 🔑 Перейдите на https://cabinet.xtunnel.ru/ для получения ключа
-set /p "activation_key=Введите ключ активации: "
+:: Запуск туннеля
+echo ▶ Запуск туннеля на порту %FLASK_PORT%...
+start "xTunnel" /B "%XTUNNEL_EXE%" http %FLASK_PORT% > "%XTUNNEL_LOG%" 2>&1
 
-:: Перезапуск с ключом
-taskkill /F /IM xTunnel.exe >nul 2>&1
-echo ▶ Перезапуск с ключом...
-start "" /B "%XTUNNEL_EXE%" -k %activation_key% -p %XTUNNEL_PORT%
+:: Ожидание инициализации
+echo ⏳ Ожидание публикации (15 секунд)...
+timeout /T 15 >nul
 
-:: Финальная проверка
-timeout /T 5 /NOBREAK >nul
-tasklist /FI "IMAGENAME eq xTunnel.exe" 2>nul | find /I "xTunnel.exe" >nul
-if !errorlevel! neq 0 (
-    echo ❌ Не удалось запустить xTunnel
-    echo 🛑 Прерывание работы
+:: Извлечение URL
+set "admin_url="
+for /f "tokens=*" %%a in ('findstr /R /C:"Public address: http" "%XTUNNEL_LOG%"') do (
+    set "line=%%a"
+    set "line=!line:Public address: =!"
+    set "admin_url=!line: =!"
+)
+
+if defined admin_url (
+    echo ✅ Туннель активирован: !admin_url!
+    del "%XTUNNEL_LOG%" >nul 2>&1
+) else (
+    echo ❌ Ошибка получения URL
+    echo Последние строки лога:
+    type "%XTUNNEL_LOG%"
     exit /b 1
 )
 exit /b 0
 
-:: Установка xTunnel
-:install_xtunnel
-echo 📥 Скачивание xTunnel...
-set "zip_file=%TEMP%\xTunnel.zip"
-powershell -Command "Invoke-WebRequest -Uri '%XTUNNEL_URL%' -OutFile '%zip_file%'"
-if %errorlevel% neq 0 (
-    echo ❌ Ошибка скачивания
-    del /Q "%zip_file%" 2>nul
-    exit /b 1
+:: Запуск компонентов
+:run_components
+call :check_status
+if "!project_status!"=="Запущен" (
+    echo ❗ Проект уже запущен
+    timeout /T 2 /NOBREAK >nul
+    goto main
 )
-
-echo 📦 Распаковка...
-if not exist "%XTUNNEL_DIR%" mkdir "%XTUNNEL_DIR%"
-tar -xf "%zip_file%" -C "%XTUNNEL_DIR%" --overwrite
-if %errorlevel% neq 0 (
-    echo ❌ Ошибка распаковки
-    del /Q "%zip_file%"
-    exit /b 1
-)
-
-del /Q "%zip_file%"
-echo ✅ xTunnel установлен в %XTUNNEL_DIR%
-exit /b 0
+echo 🌐 Запуск сервера и ботов...
+start "" /B python api\api.py
+start "" /B python clients\telegram.py
+start "" /B python clients\vk.py
+echo ✅ Компоненты запущены в фоне
+timeout /T 2 /NOBREAK >nul
+cls
+goto main
