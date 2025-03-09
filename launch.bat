@@ -2,7 +2,7 @@
 chcp 65001 > nul
 setlocal enabledelayedexpansion
 
-:: Настройки окружения
+:: Основные настройки проекта
 set "PROJECT_ROOT=%~dp0"
 set "VENV_DIR=%PROJECT_ROOT%venv"
 set "REQUIREMENTS=%PROJECT_ROOT%requirements.txt"
@@ -11,6 +11,12 @@ set "PYTHON_URL=https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe
 set "PYTHON_INSTALLER=%TEMP%\python-installer.exe"
 set "LOG_FILE=%PROJECT_ROOT%app.log"
 set "FLASK_PORT=5000"
+
+:: Настройки xTunnel
+set "XTUNNEL_DIR=%PROJECT_ROOT%xTunnel"
+set "XTUNNEL_EXE=%XTUNNEL_DIR%\xTunnel.exe"
+set "XTUNNEL_URL=https://files.xtunnel.ru/xtunnel/1.0.14/xTunnel.win-x64.1.0.14.zip"
+set "XTUNNEL_PORT=5000"
 
 :: Главное меню
 :main
@@ -50,18 +56,21 @@ call :check_python
 call :create_dotenv
 call :create_venv
 call :install_dependencies
+call :setup_xtunnel
 goto run_components
 
 :: Только запуск
 :run_only
 call :check_python
 call :activate_venv
+call :setup_xtunnel
 goto run_components
 
 :: Перезапуск всех компонентов
 :restart_all
 echo 🔄 [Перезапуск всех компонентов...]
 taskkill /F /IM python.exe >nul 2>&1
+taskkill /F /IM xTunnel.exe >nul 2>&1
 timeout /T 2 /NOBREAK > nul
 goto run_components
 
@@ -146,3 +155,73 @@ start "" /B python clients\vk.py
 echo ✅ Компоненты запущены в фоне
 timeout /T 2 /NOBREAK >nul
 goto main
+
+:: Настройка xTunnel
+:setup_xtunnel
+:: Проверка наличия xTunnel
+if not exist "%XTUNNEL_EXE%" (
+    echo 🚀 xTunnel не найден, начинаем установку...
+    call :install_xtunnel || (
+        echo ❌ Установка xTunnel прервана
+        exit /b 1
+    )
+)
+
+:: Попытка запуска
+echo ▶ Запуск xTunnel на порту %XTUNNEL_PORT%...
+start "" /B "%XTUNNEL_EXE%" -p %XTUNNEL_PORT%
+
+:: Проверка запуска
+set "max_attempts=5"
+for /L %%i in (1,1,%max_attempts%) do (
+    timeout /T 2 /NOBREAK >nul
+    tasklist /FI "IMAGENAME eq xTunnel.exe" 2>nul | find /I "xTunnel.exe" >nul
+    if !errorlevel! equ 0 (
+        echo ✅ xTunnel успешно запущен
+        exit /b 0
+    )
+)
+
+:: Если не запустился - запрос ключа
+echo ❗ xTunnel не активирован!
+echo 🔑 Перейдите на https://cabinet.xtunnel.ru/ для получения ключа
+set /p "activation_key=Введите ключ активации: "
+
+:: Перезапуск с ключом
+taskkill /F /IM xTunnel.exe >nul 2>&1
+echo ▶ Перезапуск с ключом...
+start "" /B "%XTUNNEL_EXE%" -k %activation_key% -p %XTUNNEL_PORT%
+
+:: Финальная проверка
+timeout /T 5 /NOBREAK >nul
+tasklist /FI "IMAGENAME eq xTunnel.exe" 2>nul | find /I "xTunnel.exe" >nul
+if !errorlevel! neq 0 (
+    echo ❌ Не удалось запустить xTunnel
+    echo 🛑 Прерывание работы
+    exit /b 1
+)
+exit /b 0
+
+:: Установка xTunnel
+:install_xtunnel
+echo 📥 Скачивание xTunnel...
+set "zip_file=%TEMP%\xTunnel.zip"
+powershell -Command "Invoke-WebRequest -Uri '%XTUNNEL_URL%' -OutFile '%zip_file%'"
+if %errorlevel% neq 0 (
+    echo ❌ Ошибка скачивания
+    del /Q "%zip_file%" 2>nul
+    exit /b 1
+)
+
+echo 📦 Распаковка...
+if not exist "%XTUNNEL_DIR%" mkdir "%XTUNNEL_DIR%"
+tar -xf "%zip_file%" -C "%XTUNNEL_DIR%" --overwrite
+if %errorlevel% neq 0 (
+    echo ❌ Ошибка распаковки
+    del /Q "%zip_file%"
+    exit /b 1
+)
+
+del /Q "%zip_file%"
+echo ✅ xTunnel установлен в %XTUNNEL_DIR%
+exit /b 0
