@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление данными</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            margin-top: 0;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        table th {
+            background-color: #f2f2f2;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Управление данными</h2>
+        <a href="{{ url_for('logout') }}">Выйти</a>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <p class="{{ category }}">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Форма добавления Кванта -->
+        <button id="openKvantForm">Добавить Квант</button>
+        <form id="kvantForm" class="hidden" method="POST">
+            <input type="hidden" name="action" value="add_kvant">
+            <label for="kvant_name">Название Кванта:</label>
+            <input type="text" id="kvant_name" name="kvant_name" required>
+            
+            <label for="info_pic">Изображение информации:</label>
+            <input type="file" id="info_pic_file" required>
+            <input type="hidden" id="info_pic" name="info_pic">
+            
+            <label for="schedule_pic">Изображение расписания:</label>
+            <input type="file" id="schedule_pic_file" required>
+            <input type="hidden" id="schedule_pic" name="schedule_pic">
+            
+            <label for="enrolment">Ссылка на запись:</label>
+            <input type="text" id="enrolment" name="enrolment" required>
+            <button type="submit">Добавить Квант</button>
+        </form>
+
+        <!-- Форма добавления Наставника -->
+        <button id="openMentorForm">Добавить Наставника</button>
+        <form id="mentorForm" class="hidden" method="POST">
+            <input type="hidden" name="action" value="add_mentor">
+            <label for="mentor_name">Имя наставника:</label>
+            <input type="text" id="mentor_name" name="mentor_name" required>
+            <label for="kvant">Квант:</label>
+            <select id="kvant" name="kvant" required>
+                {% for kvant in kvants %}
+                    <option value="{{ kvant[0] }}">{{ kvant[0] }}</option>
+                {% endfor %}
+            </select>
+            <label for="info_pic">Изображение:</label>
+            <input type="file" id="mentor_info_pic_file" required>
+            <input type="hidden" id="mentor_info_pic" name="info_pic">
+            <button type="submit">Добавить Наставника</button>
+        </form>
+
+        <!-- Форма добавления Мастеркласса -->
+        <button id="openMkForm">Добавить мастеркласс</button>
+        <form id="mkForm" class="hidden" method="POST">
+            <input type="hidden" name="action" value="add_mk">
+            
+            <label for="info_pic">Изображение с информацией:</label>
+            <input type="file" id="mk_info_pic_file" required>
+            <input type="hidden" id="mk_pic" name="info_pic">
+            
+            <label for="mk_info">Описание мастрекласса:</label>
+            <input type="text" id="mk_info" name="mk_info" required>
+            
+            <label for="link">Ссылка на запись:</label>
+            <input type="text" id="link" name="link" required>
+            <button type="submit">Добавить мастеркласс</button>
+        </form>
+
+        <h3>Текущие данные</h3>
+        <h4>Кванты</h4>
+        <table>
+            <tr>
+                <th>Название</th>
+                <th>Изображение информации</th>
+                <th>Изображение расписания</th>
+                <th>Ссылка на запись</th>
+                <th>Действия</th>
+            </tr>
+            {% for kvant in kvants %}
+                <tr>
+                    <td>{{ kvant[0] }}</td>
+                    <td><img src="{{ kvant[1] }}" alt="Info Pic" width="100"></td>
+                    <td><img src="{{ kvant[2] }}" alt="Schedule Pic" width="100"></td>
+                    <td>{{ kvant[3] }}</td>
+                    <td>
+                        <button onclick="editKvant('{{ kvant[0] }}', '{{ kvant[1] }}', '{{ kvant[2] }}', '{{ kvant[3] }}')">Изменить</button>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="delete_kvant">
+                            <input type="hidden" name="kvant_name" value="{{ kvant[0] }}">
+                            <button type="submit">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5">Нет данных о Квантах</td>
+                </tr>
+            {% endfor %}
+        </table>
+
+        <h4>Наставники</h4>
+        <table>
+            <tr>
+                <th>Имя</th>
+                <th>Квант</th>
+                <th>Изображение</th>
+                <th>Действия</th>
+            </tr>
+            {% for mentor in mentors %}
+                <tr>
+                    <td>{{ mentor[0] }}</td>
+                    <td>{{ mentor[1] }}</td>
+                    <td><img src="{{ mentor[2] }}" alt="Info Pic" width="100"></td>
+                    <td>
+                        <button onclick="editMentor('{{ mentor[0] }}', '{{ mentor[1] }}', '{{ mentor[2] }}')">Изменить</button>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="delete_mentor">
+                            <input type="hidden" name="mentor_name" value="{{ mentor[0] }}">
+                            <button type="submit">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">Нет данных о Наставниках</td>
+                </tr>
+            {% endfor %}
+        </table>
+
+        <h4>Мастерклассы</h4>
+        <table>
+            <tr>
+                <th>Изображение</th>
+                <th>Описание</th>
+                <th>Ссылка на запись</th>
+                <th>Действия</th>
+            </tr>
+            {% for mk in mks %}
+                <tr>
+                    <td><img src="{{ mk[1] }}" alt="Info Pic" width="100"></td>
+                    <td>{{ mk[2] }}</td>
+                    <td>{{ mk[3] }}</td>
+                    <td>
+                        <button onclick="editMk('{{ mk[0] }}', '{{ mk[1] }}', '{{ mk[2] }}', '{{ mk[3] }}')">Изменить</button>
+                        <form method="POST" style="display:inline;">
+                            <input type="hidden" name="action" value="delete_mk">
+                            <input type="hidden" name="mk_index" value="{{ mk[0] }}">
+                            <button type="submit">Удалить</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5">Нет данных о мастерклассах</td>
+                </tr>
+            {% endfor %}
+        </table>
+
+        <!-- Форма редактирования Кванта -->
+        <form id="editKvantForm" class="hidden" method="POST">
+            <input type="hidden" name="action" value="update_kvant">
+            <input type="hidden" id="old_kvant_name" name="old_kvant_name">
+            <label for="new_kvant_name">Новое название Кванта:</label>
+            <input type="text" id="new_kvant_name" name="new_kvant_name" required>
+            
+            <label for="info_pic_edit">Изображение информации:</label>
+            <input type="file" id="info_pic_edit_file">
+            <input type="hidden" id="info_pic_edit" name="info_pic">
+            
+            <label for="schedule_pic_edit">Изображение расписания:</label>
+            <input type="file" id="schedule_pic_edit_file">
+            <input type="hidden" id="schedule_pic_edit" name="schedule_pic">
+            
+            <label for="enrolment_edit">Ссылка на запись:</label>
+            <input type="text" id="enrolment_edit" name="enrolment" required>
+            <button type="submit">Сохранить изменения</button>
+        </form>
+
+        <!-- Форма редактирования Наставника -->
+        <form id="editMentorForm" class="hidden" method="POST">
+            <input type="hidden" name="action" value="update_mentor">
+            <input type="hidden" id="old_mentor_name" name="old_mentor_name">
+            <label for="new_mentor_name">Новое имя Наставника:</label>
+            <input type="text" id="new_mentor_name" name="new_mentor_name" required>
+            
+            <label for="kvant_edit">Квант:</label>
+            <select id="kvant_edit" name="kvant" required>
+                {% for kvant in kvants %}
+                    <option value="{{ kvant[0] }}">{{ kvant[0] }}</option>
+                {% endfor %}
+            </select>
+            
+            <label for="info_pic_edit_mentor">Изображение:</label>
+            <input type="file" id="info_pic_edit_mentor_file">
+            <input type="hidden" id="info_pic_edit_mentor" name="info_pic">
+            <button type="submit">Сохранить изменения</button>
+        </form>
+
+        <!-- Форма редактирования мастеркласса -->
+        <form id="editMkForm" class="hidden" method="POST">
+            <input type="hidden" name="action" value="update_mk">
+
+            <input type="hidden" id="mk_index" name="mk_index">
+            
+            <label for="mk_pic_edit">Изображение:</label>
+            <input type="file" id="mk_pic_edit_file">
+            <input type="hidden" id="mk_pic_edit" name="info_pic">
+            
+            <label for="mk_info_edit">Описание:</label>
+            <input type="text" id="mk_info_edit" name="mk_info_edit" required>
+            
+            <label for="mk_link_edit">Ссылка на запись:</label>
+            <input type="text" id="mk_link_edit" name="mk_link_edit" required>
+            <button type="submit">Сохранить изменения</button>
+        </form>
+    </div>
+
+    <script>
+        // Функция для отправки файла на сервер и получения пути
+        async function uploadFile(fileInput, hiddenInput) {
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            formData.append("action", "upload_image");
+
+            const response = await fetch("/data-control", {
+                method: "POST",
+                body: formData,
+            });
+
+            const result = await response.json();
+            hiddenInput.value = result.file_path;
+        }
+
+        // Открытие формы для добавления Кванта
+        document.getElementById("openKvantForm").addEventListener("click", () => {
+            document.getElementById("kvantForm").classList.toggle("hidden");
+        });
+
+        // Обработка загрузки изображений для Кванта
+        document.getElementById("info_pic_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("info_pic_file"), document.getElementById("info_pic"));
+        });
+
+        document.getElementById("schedule_pic_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("schedule_pic_file"), document.getElementById("schedule_pic"));
+        });
+
+        // Открытие формы для добавления Наставника
+        document.getElementById("openMentorForm").addEventListener("click", () => {
+            document.getElementById("mentorForm").classList.toggle("hidden");
+        });
+
+        // Обработка загрузки изображений для Наставника
+        document.getElementById("mentor_info_pic_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("mentor_info_pic_file"), document.getElementById("mentor_info_pic"));
+        });
+
+        // Открытие формы для добавления Мастеркласса
+        document.getElementById("openMkForm").addEventListener("click", () => {
+            document.getElementById("mkForm").classList.toggle("hidden");
+        });
+
+        // Обработка загрузки изображений для Мастеркласса
+        document.getElementById("mk_info_pic_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("mk_info_pic_file"), document.getElementById("mk_pic"));
+        });
+
+        // Редактирование Кванта
+        function editKvant(kvantName, infoPic, schedulePic, enrolment) {
+            document.getElementById("editKvantForm").classList.remove("hidden");
+            document.getElementById("old_kvant_name").value = kvantName;
+            document.getElementById("new_kvant_name").value = kvantName;
+            document.getElementById("info_pic_edit").value = infoPic;
+            document.getElementById("schedule_pic_edit").value = schedulePic;
+            document.getElementById("enrolment_edit").value = enrolment;
+        }
+
+        // Редактирование Наставника
+        function editMentor(mentorName, kvant, infoPic) {
+            document.getElementById("editMentorForm").classList.remove("hidden");
+            document.getElementById("old_mentor_name").value = mentorName;
+            document.getElementById("new_mentor_name").value = mentorName;
+            document.getElementById("kvant_edit").value = kvant;
+            document.getElementById("info_pic_edit_mentor").value = infoPic;
+        }
+
+        // Редактирование Мастеркласса
+        function editMk(id, pic, info, link) {
+            document.getElementById("editMkForm").classList.remove("hidden");
+            document.getElementById("mk_index").value = id;
+            document.getElementById("mk_pic_edit").value = pic;
+            document.getElementById("mk_info_edit").value = info;
+            document.getElementById("mk_link_edit").value = link;
+        }
+
+        // Обработка загрузки изображений при редактировании Кванта
+        document.getElementById("info_pic_edit_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("info_pic_edit_file"), document.getElementById("info_pic_edit"));
+        });
+
+        document.getElementById("schedule_pic_edit_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("schedule_pic_edit_file"), document.getElementById("schedule_pic_edit"));
+        });
+
+        // Обработка загрузки изображений при редактировании Наставника
+        document.getElementById("info_pic_edit_mentor_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("info_pic_edit_mentor_file"), document.getElementById("info_pic_edit_mentor"));
+        });
+        
+        // Обработка загрузки изображений при редактировании Мастеркласса
+        document.getElementById("mk_pic_edit_file").addEventListener("change", () => {
+            uploadFile(document.getElementById("mk_pic_edit_file"), document.getElementById("mk_pic_edit"));
+        });
+    </script>
+</body>
+</html>
