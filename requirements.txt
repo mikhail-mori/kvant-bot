@@ -1,0 +1,10 @@
+flask
+sqlalchemy
+python-dotenv
+bcrypt
+pytest
+vk_api
+aiogram
+requests
+psycopg2
+cachetools
