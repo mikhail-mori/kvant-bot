@@ -7,17 +7,17 @@ import os
 
 load_dotenv()
 
+login = os.getenv("LOGIN")
 password = os.getenv("PASSWORD")
 
 app = Flask(__name__)
 app.config.from_object(DevelopmentConfig)
 app.config['SECRET_KEY'] = password
-UPLOAD_FOLDER = os.path.join(os.getcwd(), 'static', 'uploads')
+UPLOAD_FOLDER = os.path.join(os.getcwd(),'api', 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Создаем папку для загрузок, если её нет
 
-# Администраторы (в реальном проекте лучше хранить их в базе данных с хэшированием паролей)
 ADMINS = {
-    "admin": hashpw(password.encode(), gensalt()).decode()
+    login: hashpw(password.encode(), gensalt()).decode()
 }
 
 def login_required(f):
@@ -57,7 +57,6 @@ def data_control():
     """
     if request.method == "POST":
         action = request.form.get("action")
-        print(request.form, flush=True)
         
         # Добавление Кванта
         if action == "add_kvant":
@@ -234,7 +233,6 @@ def handle_message():
         # Получаем данные из POST-запроса
         data = request.json
         user_id = data.get('user_id')
-        print(user_id)
         content_type = data.get('content_type')
         if content_type == 'text': message = data.get('message_text')
         elif content_type == 'callback': message = data.get("callback_data")

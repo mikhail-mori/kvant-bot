@@ -14,12 +14,6 @@ set "LOG_FILE=%LOG_DIR%\app.log"
 set "FLASK_PORT=5000"
 set "admin_url="
 
-:: Настройки xTunnel
-set "XTUNNEL_DIR=%PROJECT_ROOT%xTunnel"
-set "XTUNNEL_EXE=%XTUNNEL_DIR%\xTunnel.exe"
-set "XTUNNEL_URL=https://files.xtunnel.ru/xtunnel/1.0.14/xTunnel.win-x64.1.0.14.zip"
-set "XTUNNEL_LOG=%TEMP%\xtunnel_%RANDOM%.log"
-
 :: Главное меню
 :main
 call :check_status
@@ -67,21 +61,18 @@ call :check_python
 call :create_dotenv
 call :create_venv
 call :install_dependencies
-call :setup_xtunnel
 goto run_components
 
 :: Только запуск
 :run_only
 call :check_python
 call :activate_venv
-call :setup_xtunnel
 goto run_components
 
 :: Перезапуск всех компонентов
 :restart_all
 echo 🔄 [Перезапуск всех компонентов...]
 taskkill /F /IM python.exe >nul 2>&1
-taskkill /F /IM xTunnel.exe >nul 2>&1
 timeout /T 2 /NOBREAK > nul
 goto run_components
 
@@ -109,7 +100,7 @@ exit /b
 :install_python
 echo 📥 Скачивание Python...
 powershell -Command "Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%PYTHON_INSTALLER%'"
-start /wait "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1
+start /wait "%PYTHON_INSTALLER%"
 del "%PYTHON_INSTALLER%"
 exit /b
 
@@ -127,10 +118,12 @@ if exist "%DOT_ENV%" (
 ) else (
     echo.
     echo 🔧 [2/5] Ввод параметров окружения...
+    set /p admin_login="Введите логин: "
     set /p flask_secret_key="Введите пароль: "
     set /p telegram_bot_token="Введите токен телеграм бота: "
     set /p vk_bot_token="Введите токен вк бота: "
     echo DEBUG=False              > "%DOT_ENV%"
+    echo LOGIN="!admin_login!" >> "%DOT_ENV%"
     echo PASSWORD="!flask_secret_key!" >> "%DOT_ENV%"
     echo TELEGRAM_TOKEN="!telegram_bot_token!" >> "%DOT_ENV%"
     echo VK_TOKEN="!vk_bot_token!" >> "%DOT_ENV%"
@@ -161,77 +154,6 @@ echo.
 echo 🔌 Активация окружения...
 call "%VENV_DIR%\Scripts\activate.bat"
 exit /b
-
-:: Настройка xTunnel (исправленная версия)
-:setup_xtunnel
-echo.
-:: Проверка наличия xTunnel
-if not exist "%XTUNNEL_EXE%" (
-    echo 🚀 xTunnel не найден, начинаем установку...
-    call :install_xtunnel || (
-        echo ❌ Установка xTunnel прервана
-        exit /b 1
-    )
-)
-
-:: Проверка статуса регистрации
-echo ▶ Проверка статуса xTunnel...
-"%XTUNNEL_EXE%" status > "%XTUNNEL_LOG%" 2>&1
-findstr /C:"Status: Registered" "%XTUNNEL_LOG%" >nul
-if %errorlevel% neq 0 (
-    echo ❗ Требуется активация xTunnel!
-    echo 🔑 Перейдите на https://cabinet.xtunnel.ru/ для получения ключа
-    set "activation_key="
-    set /p "activation_key=Введите ключ активации: "
-    
-    :: Проверка ввода ключа
-    if "!activation_key!"=="" (
-        echo ❌ Ключ активации не введен!
-        exit /b 1
-    )
-    
-    :: Выполнение активации с кавычками
-    echo ▶ Регистрация xTunnel...
-    "%XTUNNEL_EXE%" register "!activation_key!" > "%XTUNNEL_LOG%" 2>&1
-    
-    :: Проверка результата
-    findstr /C:"Registration completed successfully" "%XTUNNEL_LOG%" >nul
-    if %errorlevel% neq 0 (
-        echo ❌ Ошибка активации. Логи:
-        type "%XTUNNEL_LOG%"
-        del "%XTUNNEL_LOG%"
-        pause
-        exit /b 1
-    )
-    echo ✅ Успешная активация xTunnel
-)
-
-:: Запуск туннеля
-echo ▶ Запуск туннеля на порту %FLASK_PORT%...
-start "xTunnel" /B "%XTUNNEL_EXE%" http %FLASK_PORT% > "%XTUNNEL_LOG%" 2>&1
-
-:: Ожидание инициализации
-echo ⏳ Ожидание публикации (15 секунд)...
-timeout /T 15 >nul
-
-:: Извлечение URL
-set "admin_url="
-for /f "tokens=*" %%a in ('findstr /R /C:"Public address: http" "%XTUNNEL_LOG%"') do (
-    set "line=%%a"
-    set "line=!line:Public address: =!"
-    set "admin_url=!line: =!"
-)
-
-if defined admin_url (
-    echo ✅ Туннель активирован: !admin_url!
-    del "%XTUNNEL_LOG%" >nul 2>&1
-) else (
-    echo ❌ Ошибка получения URL
-    echo Последние строки лога:
-    type "%XTUNNEL_LOG%"
-    exit /b 1
-)
-exit /b 0
 
 :: Запуск компонентов
 :run_components
